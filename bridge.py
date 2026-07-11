@@ -52,6 +52,10 @@ ALLOWED_USERS = {u.strip() for u in os.environ.get("ALLOWED_USERS", "").split(",
 REPLY_IN_THREAD = os.environ.get("REPLY_IN_THREAD", "true").lower() in ("1", "true", "yes")
 STATE_FILE = Path(os.environ.get("STATE_FILE",
                                  Path(__file__).resolve().parent / ".bridge_state.json"))
+# Journal written by notify.py; unseen entries are replayed to Claude at the
+# start of its next turn so the session knows about out-of-band notifications.
+EVENTS_FILE = Path(os.environ.get("EVENTS_FILE",
+                                  Path(__file__).resolve().parent / "events.jsonl"))
 
 SLACK_CHUNK = 3500  # stay well under Slack's message size limit
 
@@ -78,7 +82,32 @@ def save_state(state: dict) -> None:
         STATE_FILE.write_text(json.dumps(state, indent=2))
 
 
-state = load_state()  # {"session_id": "..."}
+state = load_state()  # {"session_id": "...", "model": "...", "events_offset": N}
+
+
+def pending_events() -> tuple[str, int]:
+    """Journal entries Claude hasn't seen yet, as display lines, plus the
+    byte offset to record once a turn consumes them."""
+    offset = state.get("events_offset", 0)
+    try:
+        size = EVENTS_FILE.stat().st_size
+    except OSError:
+        return "", offset
+    if offset > size:  # journal was truncated or rotated
+        offset = 0
+    if offset >= size:
+        return "", offset
+    with EVENTS_FILE.open() as f:
+        f.seek(offset)
+        raw = f.read()
+    lines = []
+    for line in raw.splitlines():
+        try:
+            ev = json.loads(line)
+            lines.append(f"[{ev.get('time', '?')}] {ev.get('text', '')}")
+        except json.JSONDecodeError:
+            lines.append(line)
+    return "\n".join(lines), size
 
 # --------------------------------------------------------------------------
 # Claude Code invocation
@@ -286,10 +315,24 @@ def worker(client):
         except Exception:
             pass
         progress = Progress(client, thread_ts)
+        events, events_offset = pending_events()
+        prompt = job["text"]
+        if events:
+            prompt = (
+                "[Automated notifications posted to this Slack channel since "
+                "your last turn (from notify.py/watch.sh — background context, "
+                "not written by the user):]\n"
+                f"{events}\n\n[User message:]\n{prompt}")
         try:
-            reply, sid = run_claude(job["text"], on_activity=progress.add)
+            reply, sid = run_claude(prompt, on_activity=progress.add)
+            dirty = False
             if sid and sid != state.get("session_id"):
                 state["session_id"] = sid
+                dirty = True
+            if events_offset != state.get("events_offset", 0):
+                state["events_offset"] = events_offset
+                dirty = True
+            if dirty:
                 save_state(state)
             progress.finish(":white_check_mark: _done — reply below_")
             post(client, thread_ts, reply)
@@ -390,11 +433,14 @@ def on_message(event, client):
                              "Applies from your next message.")
         return
     if low == "!status":
+        events, _ = pending_events()
+        n_events = len(events.splitlines()) if events else 0
         post(client, ts,
              f"Cluster: `{CLUSTER_NAME}`\nWorkdir: `{WORKDIR}`\n"
              f"Session: `{state.get('session_id', 'none (fresh)')}`\n"
              f"Model: `{state.get('model', 'account default')}`\n"
              f"Queued messages: {work_q.qsize()}\n"
+             f"Notifications Claude hasn't seen yet: {n_events}\n"
              f"Permission mode: `{PERMISSION_MODE}`")
         return
 

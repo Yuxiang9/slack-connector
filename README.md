@@ -24,6 +24,11 @@ Anything else is sent to Claude Code.
   COMPLETED / ANOMALY notifications in Slack (detects tracebacks, OOM, NaN
   losses, crashed tmux sessions).
 
+Notifications sent through `notify.py`/`watch.sh` are also journaled to
+`events.jsonl`, and the bridge replays unseen entries to Claude at the start
+of its next turn — so you can ask "how did the training go?" and Claude knows
+what the watchdog reported (including the log file path, which it can read).
+
 ## Security — read this first
 
 Whoever can post in the bridged channel can execute commands **as your user on

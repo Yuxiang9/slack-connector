@@ -19,7 +19,12 @@ In-channel commands: `!new` (fresh session), `!model <name>`, `!status`,
 `!help`. Anything else goes to Claude.
 
 `notify.py` posts a one-off message to the same channel (`python notify.py
-"text"`). `watch.sh` uses it to report job completion/crashes to Slack.
+"text"`). `watch.sh` uses it to report job completion/crashes to Slack. Both
+also append to `events.jsonl` next to the bridge; the bridge prepends unseen
+entries to Claude's next prompt (tracking a byte offset in
+`.bridge_state.json`), so the Claude session learns about notifications it
+didn't send itself. `watch.sh` keeps job logs under `logs/` and includes the
+path in its messages so Claude can read the full log on request.
 
 ## Step 1 — Interview the user about the configuration
 

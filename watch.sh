@@ -31,10 +31,12 @@ mode="${1:-}"; shift || true
 case "$mode" in
   run)
     LABEL="${1:-job}"; shift
-    LOG=$(mktemp "/tmp/watch-$(echo "$LABEL" | tr -c 'A-Za-z0-9' '_').XXXX.log")
+    mkdir -p "$HERE/logs"
+    LOG="$HERE/logs/watch-$(echo "$LABEL" | tr -c 'A-Za-z0-9' '_')-$(date +%Y%m%d-%H%M%S).log"
     notify "▶️ STARTED: ${LABEL}
 $(now)
 cmd: $*
+log: ${LOG}
 GPUs:
 $(gpu)"
     # run the command, mirror output to pane + log; capture the command's real exit code
@@ -43,12 +45,14 @@ $(gpu)"
     if [ "$rc" -eq 0 ] && [ -z "$anom" ]; then
       notify "✅ COMPLETED: ${LABEL}
 $(now)  (exit 0, no anomalies)
+log: ${LOG}
 GPUs:
 $(gpu)"
     else
       notify "🚨 PROBLEM: ${LABEL}
 $(now)  exit=${rc}
 $([ -n "$anom" ] && printf 'flags:\n%s\n' "$anom")
+log: ${LOG}
 last log lines:
 $(tail -8 "$LOG" | sed 's/^/  /')
 GPUs:

@@ -3,6 +3,8 @@
 
 # Runtime state
 .bridge_state.json
+events.jsonl
+logs/
 
 # Python
 .venv/
