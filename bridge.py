@@ -50,6 +50,8 @@ EXTRA_ARGS = os.environ.get("CLAUDE_EXTRA_ARGS", "").split()
 ALLOWED_USERS = {u.strip() for u in os.environ.get("ALLOWED_USERS", "").split(",") if u.strip()}
 # true = reply in a thread under the prompt; false = reply directly in channel
 REPLY_IN_THREAD = os.environ.get("REPLY_IN_THREAD", "true").lower() in ("1", "true", "yes")
+# Post a short usage message to the channel when the bridge connects.
+STARTUP_MESSAGE = os.environ.get("STARTUP_MESSAGE", "true").lower() in ("1", "true", "yes")
 STATE_FILE = Path(os.environ.get("STATE_FILE",
                                  Path(__file__).resolve().parent / ".bridge_state.json"))
 # Journal written by notify.py; unseen entries are replayed to Claude at the
@@ -462,11 +464,42 @@ def on_mention(event):
 # --------------------------------------------------------------------------
 
 
+def startup_text() -> str:
+    sid = state.get("session_id")
+    events, _ = pending_events()
+    n_events = len(events.splitlines()) if events else 0
+    lines = [
+        f":large_green_circle: *Claude Code bridge online — `{CLUSTER_NAME}`*",
+        f"Anything you post here runs as a Claude Code prompt on this "
+        f"machine (workdir `{WORKDIR}`), one message at a time.",
+        "",
+        "• Session: " + (f"resuming `{sid}`" if sid else "fresh (no prior context)"),
+        f"• Model: `{state.get('model', 'account default')}` · "
+        f"Permission mode: `{PERMISSION_MODE}`",
+    ]
+    if n_events:
+        lines.append(f"• {n_events} notification(s) queued for Claude — "
+                     "delivered with your next message")
+    lines += [
+        "",
+        "Commands: `!new` fresh session · `!model <name>` switch model · "
+        "`!status` bridge status · `!help` full help",
+        "_Tip: wrap long jobs with `watch.sh run \"label\" <cmd>` — completion/"
+        "crash reports land here and Claude sees them too._",
+    ]
+    return "\n".join(lines)
+
+
 def main():
     if not WORKDIR.is_dir():
         raise SystemExit(f"CLAUDE_WORKDIR does not exist: {WORKDIR}")
     client = app.client
     threading.Thread(target=worker, args=(client,), daemon=True).start()
+    if STARTUP_MESSAGE:
+        try:
+            client.chat_postMessage(channel=CHANNEL_ID, text=startup_text())
+        except Exception:
+            log.warning("Could not post startup message", exc_info=True)
     log.info("Bridge for '%s' online. Channel=%s Workdir=%s",
              CLUSTER_NAME, CHANNEL_ID, WORKDIR)
     SocketModeHandler(app, APP_TOKEN).start()

@@ -52,6 +52,7 @@ your question tool if you have one). For each variable:
 | `ALLOWED_USERS` | Comma-separated Slack member IDs (`U...`) allowed to use the bridge — at minimum the user's own ID. **Warn the user and get explicit confirmation before leaving this empty**: empty means anyone in the channel can run code on this machine. |
 | `PERMISSION_MODE` | `acceptEdits` (safer default: Claude edits files but can't run arbitrary commands) or `bypassPermissions` (full autonomy). Explain the trade-off and let the user choose. |
 | `REPLY_IN_THREAD` | `true` = replies in a thread under each prompt; `false` = directly in the channel. Default `true`. |
+| `STARTUP_MESSAGE` | `true` (default) posts a short usage/status message to the channel whenever the bridge (re)connects. |
 | `CLAUDE_TIMEOUT_SECONDS` | Max seconds per Claude turn (default 1800). Raise for long-running tasks. |
 | `CLAUDE_EXTRA_ARGS` | Extra `claude` CLI flags, e.g. a tool allow-list. Usually empty. |
 
