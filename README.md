@@ -99,7 +99,7 @@ following [AGENT.md](AGENT.md).
 ### 3. Put the repo and tokens on the machine
 
 ```bash
-git clone <this-repo> && cd slack-connector
+git clone https://github.com/Yuxiang9/slack-connector.git && cd slack-connector
 cp .env.example .env
 ```
 
