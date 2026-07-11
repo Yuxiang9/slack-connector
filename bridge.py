@@ -484,8 +484,6 @@ def startup_text() -> str:
         "",
         "Commands: `!new` fresh session · `!model <name>` switch model · "
         "`!status` bridge status · `!help` full help",
-        "_Tip: wrap long jobs with `watch.sh run \"label\" <cmd>` — completion/"
-        "crash reports land here and Claude sees them too._",
     ]
     return "\n".join(lines)
 
